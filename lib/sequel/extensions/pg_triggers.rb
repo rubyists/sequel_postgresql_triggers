@@ -328,15 +328,15 @@ module Sequel
         quoted_outbox = quote_schema_table(outbox_table)
         event_prefix  = opts.fetch(:event_prefix, table)
         created_column = opts.fetch(:created_column, :created)
-        created_column = opts.fetch(:updated_column, :updated)
+        updated_column = opts.fetch(:updated_column, :updated)
         event_type_column = opts.fetch(:event_type_column, :event_type)
-        boolean_attempted_column = opts.fetch(:boolean_attempted_column, false)
-        uuid_primary_key = opts.fetch(:outbox_uuid_primary_key, false)
-        run 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"' if uuid_column
+        boolean_completed_column = opts.fetch(:boolean_completed_column, false)
+        uuid_primary_key = opts.fetch(:uuid_primary_key, false)
+        run 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"' if uuid_primary_key
         create_table(outbox_table) do
           if uuid_primary_key
-            uuid_function = opts.fetch(:outbox_uuid_function, :generate_uuid_v4)
-            uuid :id, :default=>Sequel.function(uuid_function), :primary_key=>true
+            uuid_function = opts.fetch(:uuid_function, :generate_uuid_v4)
+            uuid :id, default: Sequel.function(uuid_function), primary_key: true
           else
             primary_key :id
           end
@@ -381,7 +381,7 @@ module Sequel
       def pgt_outbox_events(table, function, opts={})
         events = opts.fetch(:events, [:insert, :update, :delete])
         trigger_name = opts.fetch(:trigger_name, "pgt_outbox_#{pgt_mangled_table_name(table)}")
-        create_trigger(table, trigger_name, function, events:, replace: true, each_row: true, after: true, when: opts[:when])
+        create_trigger(table, trigger_name, function, events: events, replace: true, each_row: true, after: true, when: opts[:when])
       end
 
       private
