@@ -747,8 +747,6 @@ describe "PostgreSQL Force Defaults Trigger" do
     DB[:accounts].first.must_equal(:id=>10, :a=>1, :b=>"'\\a", :c=>nil, :d=>14)
   end
 end
-
-
 describe "PostgreSQL JSON Audit Logging" do
   before do
     DB.extension :pg_json
@@ -786,5 +784,42 @@ describe "PostgreSQL JSON Audit Logging" do
     txid2.must_be_kind_of(Integer)
     txid2.must_be :>, txid1
     h.must_equal(:schema=>"public", :table=>"accounts", :action=>"DELETE", :prior=>{"a"=>3, "id"=>2})
+  end
+
+describe "PostgreSQL Transactional Outbox" do
+  before do
+    DB.extension :pg_json
+    DB.create_table(:accounts){integer :id; String :s}
+    function_name = DB.pgt_outbox_setup(:accounts_outbox, :function_name=>:spgt_outbox_events)
+    DB.pgt_outbox_events(:accounts, function_name)
+    @logs = DB[:accounts_outbox].reverse(:created)
+  end
+
+  after do
+    DB.drop_table(:accounts, :accounts_outbox)
+    DB.drop_function(:spgt_outbox_events)
+  end
+
+  it "should store outbox events for writes on main table" do
+    @logs.first.must_be_nil
+
+    ds = DB[:accounts]
+    ds.insert(id: 1, s: 'string')
+    ds.all.must_equal [{id: 1, s: 'string'}]
+    h = @logs.first
+    h.delete(:created).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.must_equal({})
+
+    @ds.where(id: 1).update(s: 'string2')
+    @ds.all.must_equal [{id: 1, s: 'string2'}]
+    h = @logs.first
+    h.delete(:created).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.must_equal({})
+
+    @ds.delete
+    @ds.all.must_equal []
+    h = @logs.first
+    h.delete(:created).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.must_equal({})
   end
 end if DB.server_version >= 90400

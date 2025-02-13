@@ -344,7 +344,7 @@ module Sequel
           column  created_column, :timestamptz
           column  updated_column, :timestamptz
           column  opts.fetch(:attempted_column, :attempted), :timestamptz
-          if opts[:boolean_completed_column]
+          if boolean_completed_column
             FalseClass opts.fetch(:completed_column, :completed), null: false, default: false
           else
             column     opts.fetch(:completed_column, :completed), :timestamptz
