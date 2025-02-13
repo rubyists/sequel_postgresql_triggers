@@ -25,7 +25,7 @@ if ENV['PGT_GLOBAL'] == '1'
   require 'sequel_postgresql_triggers'
 else
   puts "Running specs with extension"
-  DB.extension :pg_triggers 
+  DB.extension :pg_triggers
 end
 DB.extension :pg_array
 
@@ -59,31 +59,31 @@ describe "PostgreSQL Counter Cache Trigger" do
 
     DB[:entries].insert(:id=>2, :account_id=>1)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
-    
+
     DB[:entries].insert(:id=>3, :account_id=>nil)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 0]
-    
+
     DB[:entries].where(:id=>3).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [2, 1]
-    
+
     DB[:entries].where(:id=>2).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 2]
-    
+
     DB[:entries].where(:id=>2).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-    
+
     DB[:entries].where(:id=>2).update(:id=>4)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-    
+
     DB[:entries].where(:id=>4).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 2]
-    
+
     DB[:entries].where(:id=>4).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-    
+
     DB[:entries].filter(:id=>4).delete
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [1, 1]
-    
+
     DB[:entries].delete
     DB[:accounts].order(:id).select_map(:num_entries).must_equal [0, 0]
   end
@@ -195,34 +195,34 @@ describe "PostgreSQL Sum Cache Trigger" do
 
     DB[:entries].insert(:id=>2, :account_id=>1, :amount=>200)
     DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
-    
+
     DB[:entries].insert(:id=>3, :account_id=>nil, :amount=>500)
     DB[:accounts].order(:id).select_map(:balance).must_equal [300, 0]
-    
+
     DB[:entries].where(:id=>3).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:balance).must_equal [300, 500]
-    
+
     DB[:entries].exclude(:id=>2).update(:amount=>Sequel.*(:amount, 2))
     DB[:accounts].order(:id).select_map(:balance).must_equal [400, 1000]
-    
+
     DB[:entries].where(:id=>2).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1200]
-    
+
     DB[:entries].where(:id=>2).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-    
+
     DB[:entries].where(:id=>2).update(:id=>4)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-    
+
     DB[:entries].where(:id=>4).update(:account_id=>2)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1200]
-    
+
     DB[:entries].where(:id=>4).update(:account_id=>nil)
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-    
+
     DB[:entries].filter(:id=>4).delete
     DB[:accounts].order(:id).select_map(:balance).must_equal [200, 1000]
-    
+
     DB[:entries].delete
     DB[:accounts].order(:id).select_map(:balance).must_equal [0, 0]
   end
@@ -747,6 +747,7 @@ describe "PostgreSQL Force Defaults Trigger" do
     DB[:accounts].first.must_equal(:id=>10, :a=>1, :b=>"'\\a", :c=>nil, :d=>14)
   end
 end
+
 describe "PostgreSQL JSON Audit Logging" do
   before do
     DB.extension :pg_json
@@ -785,12 +786,13 @@ describe "PostgreSQL JSON Audit Logging" do
     txid2.must_be :>, txid1
     h.must_equal(:schema=>"public", :table=>"accounts", :action=>"DELETE", :prior=>{"a"=>3, "id"=>2})
   end
+end if DB.server_version >= 90400
 
 describe "PostgreSQL Transactional Outbox" do
   before do
     DB.extension :pg_json
     DB.create_table(:accounts){integer :id; String :s}
-    function_name = DB.pgt_outbox_setup(:accounts_outbox, :function_name=>:spgt_outbox_events)
+    function_name = DB.pgt_outbox_setup(:accounts, :function_name=>:spgt_outbox_events)
     DB.pgt_outbox_events(:accounts, function_name)
     @logs = DB[:accounts_outbox].reverse(:created)
   end
@@ -808,18 +810,21 @@ describe "PostgreSQL Transactional Outbox" do
     ds.all.must_equal [{id: 1, s: 'string'}]
     h = @logs.first
     h.delete(:created).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
-    h.must_equal({})
+    h.delete(:updated).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.must_equal(id: 1, attempts: 0, attempted: nil, completed: nil, event_type: "accounts_created", last_error: nil, data_before: nil, data_after: {"s" => "string", "id" => 1}, metadata: nil)
 
-    @ds.where(id: 1).update(s: 'string2')
-    @ds.all.must_equal [{id: 1, s: 'string2'}]
+    ds.where(id: 1).update(s: 'string2')
+    ds.all.must_equal [{id: 1, s: 'string2'}]
     h = @logs.first
     h.delete(:created).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
-    h.must_equal({})
+    h.delete(:updated).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.must_equal(id: 2, attempts: 0, attempted: nil, completed: nil, event_type: "accounts_updated", last_error: nil, data_before: {"s" => "string", "id" => 1}, data_after: {"s" => "string2", "id" => 1}, metadata: nil)
 
-    @ds.delete
-    @ds.all.must_equal []
+    ds.delete
+    ds.all.must_equal []
     h = @logs.first
     h.delete(:created).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
-    h.must_equal({})
+    h.delete(:updated).to_i.must_be_close_to(10, DB.get(Sequel::CURRENT_TIMESTAMP).to_i)
+    h.must_equal(id: 3, attempts: 0, attempted: nil, completed: nil, event_type: "accounts_deleted", last_error: nil, data_before: {"s" => "string2", "id" => 1}, data_after: nil, metadata: nil)
   end
 end if DB.server_version >= 90400

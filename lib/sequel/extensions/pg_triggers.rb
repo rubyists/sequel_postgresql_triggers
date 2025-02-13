@@ -330,6 +330,8 @@ module Sequel
         created_column = opts.fetch(:created_column, :created)
         updated_column = opts.fetch(:updated_column, :updated)
         event_type_column = opts.fetch(:event_type_column, :event_type)
+        data_after_column = opts.fetch(:data_after_column, :data_after)
+        data_before_column = opts.fetch(:data_before_column, :data_before)
         boolean_completed_column = opts.fetch(:boolean_completed_column, false)
         uuid_primary_key = opts.fetch(:uuid_primary_key, false)
         run 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"' if uuid_primary_key
@@ -351,8 +353,8 @@ module Sequel
           end
           String event_type_column, null: false
           String opts.fetch(:last_error_column, :last_error)
-          jsonb  opts.fetch(:data_before_column, :data_before)
-          jsonb  opts.fetch(:data_after_column, :data_after)
+          jsonb  data_before_column
+          jsonb  data_after_column
           jsonb  opts.fetch(:metadata_column, :metadata)
         end
         pgt_created_at outbox_table, created_column
