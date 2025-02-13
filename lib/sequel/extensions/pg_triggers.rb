@@ -337,7 +337,7 @@ module Sequel
         run 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"' if uuid_primary_key
         create_table(outbox_table) do
           if uuid_primary_key
-            uuid_function = opts.fetch(:uuid_function, :generate_uuid_v4)
+            uuid_function = opts.fetch(:uuid_function, :uuid_generate_v4)
             uuid :id, default: Sequel.function(uuid_function), primary_key: true
           else
             primary_key :id
